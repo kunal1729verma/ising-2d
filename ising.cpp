@@ -616,7 +616,7 @@ int main(int argc, char** argv)
     if(initialize_all_up) initialize_state_to_all_up() ;    
 
     //run
-    run_monte_carlo(neqsweeps, nsamsweeps, nsampstp, sequential) ;
+    run_monte_carlo(neqsweeps, nsamsweeps, 2*tau, sequential) ;
 
     //analyze and print output
     analyze_samples(casename, nblen, nsamsweeps,foutp) ;
