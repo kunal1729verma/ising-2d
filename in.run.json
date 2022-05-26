@@ -1,0 +1,14 @@
+{
+    "casename": "check",
+    "Llist": [8,16,32],
+    "Tmin": 2.0e0,
+    "Tmax": 2.50e0,
+    "dT": 0.01e0,
+    "neqsweeps": 10000,
+    "nsamsweeps": 500000,
+    "nblen": 200,
+    "nsampstp" : 10,
+    "initialize_all_up" : false,
+    "print_cor" : true,
+    "sequential" : true
+}

@@ -13,6 +13,7 @@
 
 #include "Params.hpp"
 
+#include <cmath>
 
 //definitions
 #define UP 1
@@ -353,20 +354,31 @@ void analyze_samples(std::string const casename, int const nblen,
 
   // std::cout << "Number of data points " << ndat << std::endl ;
 
-  for(int iobs = 0; iobs < NOBS ; iobs++) {
+  for(int iobs = 0; iobs < NOBS ; iobs++) 
+  {
     sum[iobs] = 0.e0 ;
     sum2[iobs] = 0.e0 ;
   }
+
   int ibin = 0;
-  for(int idat = 0; idat <= ndat; idat++) {    
-    if( (idat > 0 & idat%nblen == 0) || idat == ndat ) {
+  for(int idat = 0; idat <= ndat; idat++) {            // let's say ndat = 5 and nblen = 2.
+    if( ((idat > 0) & (idat%nblen == 0)) || idat == ndat ) {
       for(int iobs = 0; iobs < NOBS; iobs++) {
 	sum[iobs] /= (double)ibin ;
 	sum2[iobs]/= (double)ibin ;
 	sum2[iobs]-= (sum[iobs]*sum[iobs]) ;
 	double factor;
-	factor = sqrt((double(ibin))/((double)(ibin-1))) ;
+  if (ibin == 1) {
+    factor = 0;
+  }
+  else {
+    factor = sqrt((double(ibin))/((double)(ibin-1))) ;  // FOUND THE NAN ERROR. Whenever observables.size()%nblen = 1, then on the step when idat == ndat, => ibin = 1. This causes factor = NaN because we divide by zero!   
+  }
+	
 	sum2[iobs] *= factor; //unbaiased estimator of variance
+
+  // std::cout<< std::endl << "baka baka idat = " << idat << " baka baka nblen = " << nblen << std::endl;  // troubleshoot. 
+
       }
       meansamp.push_back(sum);
       varsamp.push_back(sum2);
@@ -381,8 +393,8 @@ void analyze_samples(std::string const casename, int const nblen,
       if(idat == ndat) break; 
 
       for(int iobs = 0; iobs < NOBS; iobs++) {
-	sum[iobs] = 0.e0 ;
-	sum2[iobs] = 0.e0 ;
+	      sum[iobs] = 0.e0 ;
+	      sum2[iobs] = 0.e0 ;
       }
       ibin=0 ;      
     }
@@ -393,6 +405,8 @@ void analyze_samples(std::string const casename, int const nblen,
     }
     ibin++;
   }
+
+  std::cout << "observables.size() = " << observables.size() << "  nblen = "<< nblen <<  " " <<std::endl;
 
 
   //std::cout << "--------" << std::endl ;
@@ -413,11 +427,38 @@ void analyze_samples(std::string const casename, int const nblen,
     ndat = meansamp.size() ;
     for(int i = 0; i < ndat; i++)
       {
-	data.push_back(varsamp[i][iobs]) ;
+	data.push_back(varsamp[i][iobs]) ;  
       }
     statistics(data,meanval,err) ;
     aveflc[iobs] = meanval ;
     errflc[iobs] = err ;
+
+    // TROUBLESHOOTING NAN ERROR (the problem was with the variable "factor" )
+    
+    // if (std::isnan(aveflc[iobs]))
+    // {
+    //   std::cout << std::endl;
+    //   std::cout << "Hi! NaN error just occured! Observable number = " << iobs <<  std::endl;          // trying to troubleshoot nan error.      
+    //   std::cout << "size of varsamp  = " << varsamp.size() <<std::endl;
+
+    //   for (int k = 0; k < data.size() ; k++)
+    //   {
+    //     std::cout << data[k] << " " ;
+    //   }
+    //   std::cout << std::endl << std::endl << "Actual observable measurements for Observable no. " << iobs << std::endl;
+
+    //   for (int idat = 0; idat <observables.size(); idat++)
+    //   {
+    //     std::cout << observables[idat][iobs] << " " ;
+    //     if (std::isnan(observables[idat][iobs]))
+    //     {
+    //       std::cout << std::endl << std::endl << "Found NaN" << std::endl << std::endl;
+    //     }
+    //   }
+    //   std::cout << std::endl << std::endl;
+    // }
+
+
     //std::cout << iobs << " " << meanval << " " << sdval << std::endl ;
     
   }
@@ -616,10 +657,12 @@ int main(int argc, char** argv)
     if(initialize_all_up) initialize_state_to_all_up() ;    
 
     //run
-    run_monte_carlo(neqsweeps, nsamsweeps, 2*tau, sequential) ;
+    int nsampstp_new = 2*tau;
+    int nsamsweeps_new = 2*tau*5000;
+    run_monte_carlo(neqsweeps, nsamsweeps_new, nsampstp_new, sequential) ;
 
     //analyze and print output
-    analyze_samples(casename, nblen, nsamsweeps,foutp) ;
+    analyze_samples(casename, nblen, nsamsweeps_new, foutp);
 
 
     T+=dT;
