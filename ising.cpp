@@ -325,16 +325,30 @@ double obtain_correlations(int const tmax, std::ofstream &fp)
     fp << std::endl ;
   }
 
-  // Calculate the Integrated Auto-Correlation time
+  // Calculate the Integrated Auto-Correlation time using "automatic windowing" procedure. (Ref. A. Sokal Monte Carlo Methods in Statistical Mechanics: Foundations and New Algorithms  https://link.springer.com/chapter/10.1007/978-1-4899-0319-8_6)
 
   std::array<double,NOBS> tau_array ;  // store autocorrelation times for each observables at a given (T, L)
   
   for(int iobs = 0; iobs < NOBS; iobs++) {
-    double tau_sum = 0.50e0 ;
-    for(int it=0; it < tmax; it++) {  
-      tau_sum = tau_sum + cor[it][iobs];
+    double tau_sum = 0.50e0 ; 
+    int N = 50;
+    bool condition = true;
+    int it = 1;
+
+    while (condition)
+    {
+      for(it; it < N; it++) {  
+        tau_sum = tau_sum + (cor[it][iobs]);
+      }
+      condition = N <= (6*tau_sum);
+      std::cout << "tau_sum*6 = " << tau_sum*6 << "  N = " << N << "           "; // comment it out later, just for troubleshoot.
+      // update N.
+      N = N*1.2;
     }
+    N = N/1.2; //undoing the last update.
     tau_array[iobs] = tau_sum;
+
+    std::cout << "tau_sum = " << tau_sum << "  N = " << N << "           "; // comment it out later, just for troubleshoot.
   }
 
   double tau_int = *std::max_element(tau_array.begin(), tau_array.end()); // maxima of correlation time out of all observables
@@ -536,7 +550,7 @@ int main(int argc, char** argv)
   double Tmin=2.1e0, Tmax=2.40e0, dT=0.02e0;
 
   bool initialize_all_up = false, print_cor = false;
-  int tmax=500;
+  int tmax=5000;
   
   std::cin >> parameters ;
 
@@ -630,7 +644,7 @@ int main(int argc, char** argv)
     auto corfile = "output/"+casename+"_cor.plt" ;
     std::ofstream fcor(corfile) ;
     //}
-  
+
   T = Tmin;
   
   while (T <= Tmax+dT/2.e0) { 
