@@ -325,6 +325,8 @@ double obtain_correlations(int const tmax, std::ofstream &fp)
     fp << std::endl ;
   }
 
+  fp << std::endl ;
+
   // Calculate the Integrated Auto-Correlation time using "automatic windowing" procedure. (Ref. A. Sokal Monte Carlo Methods in Statistical Mechanics: Foundations and New Algorithms  https://link.springer.com/chapter/10.1007/978-1-4899-0319-8_6)
 
   std::array<double,NOBS> tau_array ;  // store autocorrelation times for each observables at a given (T, L)
