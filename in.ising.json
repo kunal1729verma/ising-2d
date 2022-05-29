@@ -1,15 +1,16 @@
 {
     "casename": "seqlL64",
-    "L" : 8,
+    "L" : 16,
     "Tmin": 2.0e0,
     "Tmax": 2.50e0,
     "dT": 0.02e0,
     "neqsweeps": 1000,
-    "nsamsweeps": 50000,
+    "nsamsweeps": 400000,
     "nblen": 20,
     "nsampstp" : 10,
     "initialize_all_up" : false,
     "print_cor" : true,
-    "sequential" : true
+    "sequential" : true,
+    "tmax" : 200000
 }
 
