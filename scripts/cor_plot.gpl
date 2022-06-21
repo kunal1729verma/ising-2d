@@ -1,0 +1,7 @@
+# j is the number of autocorrelation plots that you want in a single graph.
+
+set datafile separator ","
+plot for[i=0:j] "output/seqlL16_cor.plt" u 1:5 every :101::i lt 7 lc i w lp title sprintf("T = %g",i*0.01 + 2)
+set xlabel "Time Lag (t)"
+set ylabel "Autocorrelation Function of |m|    C_{|m|}(t)"  
+replot

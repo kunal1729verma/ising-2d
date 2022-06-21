@@ -1,0 +1,27 @@
+# i is the the column which you want to plot. 4 is energy density, 6 is magnetization, 12 is abs(magnetization), 20 is susceptibility, 22 is specific heat, 24 is binder's cumulant.
+
+set datafile separator ","
+plot "output/seqlL16_out.plt" u 1:i every 1:15::0 lt 7 lc 12 w lp title "L=16 (step size = 2*tau)" 
+set xlabel "Temperature" 
+if (i == 4) {
+    set ylabel "<E>"
+} 
+if (i==6) {
+    set ylabel "<m>"
+}
+if (i==12) {
+    set ylabel "<|m|>"
+}
+if (i==20) {
+    set ylabel "susceptibility"
+}
+if (i==22) {
+    set ylabel "heat capacity"
+}
+if (i==24) {
+    set ylabel "binder's cumulant"
+}
+if (i==26) {
+    set ylabel "autocorr time (tau)"
+}
+replot

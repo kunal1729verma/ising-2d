@@ -14,6 +14,8 @@
 #include "Params.hpp"
 
 #include <cmath>
+#include <chrono>
+
 
 //definitions
 #define UP 1
@@ -42,10 +44,10 @@ std::map<int,double> embetaJ ;
 #define NOBS 6
 #define ENE 0
 #define ENE2 1
-#define MAG 2
-#define AMAG 3
-#define MAG2 4
-#define MAG4 5
+#define AMAG 2
+#define MAG2 3
+#define MAG4 4
+#define MAG 5
 std::vector<std::array<double,NOBS>> observables ;
 
 
@@ -63,7 +65,7 @@ void define_Boltzmann( )
 
   beta = 1.e0/T;
   
-  embetaJ[4] = exp(-4.e0*beta*J);
+  embetaJ[4] = exp(-4.e0*beta*J);      // we only need embeta[4] and embeta[8] because the only values that can be taken by iene is -8, -4, 0 , 4, 8 and we simply flip the spin if iene <=0, so the only boltzmann probabilities required are for iene = 4 or iene = 8.
   embetaJ[8] = exp(-8.e0*beta*J);
 
   //std::cout << embetaJ[4] << std::endl ;
@@ -74,40 +76,36 @@ void define_Boltzmann( )
 
 
 //--------------------------------------------------------------------
-void define_lattice_and_initialize_state()
-{
-
-  int is ;
-  is = 0 ;
-  for(int ix = 0; ix < L; ix++) {
-    for( int iy = 0; iy < L; iy++) {
-      coord.push_back({ix,iy}) ;
-      which_site[(std::array<int,2>){ix,iy}] = is ;
-      spin[(std::array<int,2>){ix,iy}] = UP ;
-      is++;
-    }
-  }
-
-  nspins = L*L;
-  return;
-}
-
-//--------------------------------------------------------------------
-void initialize_state_to_all_up()
-{
-  for(int ix = 0; ix < L; ix++) {
-    for( int iy = 0; iy < L; iy++) {
-      spin[(std::array<int,2>){ix,iy}] = UP ;
-    }
-  }
-  return;
-}  
-
-
-//--------------------------------------------------------------------
-inline int Fold(const int i, const int N) {
-  return( (i+N)%N ) ;
-}
+	//--------------------------------------------------------------------	
+void define_lattice_and_initialize_state()	
+{	
+  int is ;	
+  is = 0 ;	
+  for(int ix = 0; ix < L; ix++) {	
+    for( int iy = 0; iy < L; iy++) {	
+      coord.push_back({ix,iy}) ;	
+      which_site[(std::array<int,2>){ix,iy}] = is ;	
+      spin[(std::array<int,2>){ix,iy}] = UP ;	
+      is++;	
+    }	
+  }	
+  nspins = L*L;	
+  return;	
+}	
+//--------------------------------------------------------------------	
+void initialize_state_to_all_up()	
+{	
+  for(int ix = 0; ix < L; ix++) {	
+    for( int iy = 0; iy < L; iy++) {	
+      spin[(std::array<int,2>){ix,iy}] = UP ;	
+    }	
+  }	
+  return;	
+}  	
+//--------------------------------------------------------------------	
+inline int Fold(const int i, const int N) {	
+  return( (i+N)%N ) ;	
+}	
 
 //--------------------------------------------------------------------
 double energy_density()
@@ -156,7 +154,7 @@ void perform_measurements()
   amag = abs(mag);
   mag2 = mag*mag ;
   mag4 = mag2*mag2;
-  observables.push_back((std::array<double,NOBS>){edens,edens2,mag,amag,mag2,mag4}) ;
+  observables.push_back((std::array<double,NOBS>){edens,edens2,amag,mag2,mag4,mag}) ;
 
   return;
 }
@@ -176,22 +174,20 @@ void flip_spin(int const ix, int const iy)
 
   iene = 2*spin[r]*(spin[rpx]+spin[rmx]+spin[rpy]+spin[rmy]);
 
-  
-  if ( (iene <= 0) || ( uniform(gen) < embetaJ[iene]) ) spin[r] *= -1;
-  
 
+  if ( (iene <= 0) || ( uniform(gen) < embetaJ[iene]) ) spin[r] *= -1;
   return;
 }
 
 //--------------------------------------------------------------------
-void monte_carlo_sweep_sequential()
-{
-  for(int ix = 0; ix < L; ix++) {
-    for( int iy = 0; iy < L; iy++) {
-      flip_spin(ix,iy);
-    }
-  }
-  return ;
+	void monte_carlo_sweep_sequential()	
+{	
+  for(int ix = 0; ix < L; ix++) {	
+    for( int iy = 0; iy < L; iy++) {	
+      flip_spin(ix,iy);	
+    }	
+  }	
+  return ;	
 }
 
 //--------------------------------------------------------------------
@@ -267,8 +263,46 @@ void statistics(std::vector<double> data, double &mean, double &err) {
 }
 
 //--------------------------------------------------------------------
-double obtain_correlations(int const tmax, std::ofstream &fp)
+
+double obtain_correlation_value(int iobs, int t)
 {
+  double mean = 0.e0, mean2 = 0.e0;
+  double val;
+  double corsum = 0.e0;
+  for (int k = 0; k < observables.size()-t; k++)    // here.
+  {
+      val = observables[k][iobs];
+      mean += val;
+      mean2 += val*val;
+  }
+  mean /= (double)(observables.size()-t);    // here.
+  mean2 /= (double)(observables.size()-t);   // here.
+
+  for (int j = 0; j < observables.size()-t; j++)
+  {
+      corsum += (observables[j][iobs] - mean)*(observables[j+t][iobs] - mean);
+  }
+  double C = (corsum/((observables.size()-t)*(mean2 - mean*mean)));  // correlation function value for time lag t.
+  return C;
+}
+//--------------------------------------------------------------------
+
+
+
+//--------------------------------------------------------------------
+double obtain_correlation_time(int const tmax, std::ofstream &fp, std::ofstream &fo)
+{
+  // saving observations in a data file
+  for (int it = 0; it < observables.size(); it ++)            // fo is the new ofstream variable that I'm using to output a file of observable measurements.
+  {
+    fo << it << "," << T << "," ;
+    for (int iobs = 0; iobs < NOBS ; iobs ++)
+    {
+      fo << observables[it][iobs] << ",";
+    }
+    fo << std::endl;
+  }
+
   auto ndat = observables.size() - tmax;
 
   if (ndat <= 0 ) {
@@ -278,49 +312,24 @@ double obtain_correlations(int const tmax, std::ofstream &fp)
   
   std::vector<std::vector<double>> cor;
 
-  std::array<double,NOBS> mean, mean2;
-
-  for(int iobs = 0; iobs < NOBS; iobs++) {
-    mean[iobs] = 0.e0;
-    mean2[iobs] = 0.e0;
-    for(int i = 0; i< ndat;i++) {
-      auto val = observables[i][iobs] ;
-      mean[iobs] += val;
-      mean2[iobs] += val*val;
-    }
-    mean[iobs] /= (double)ndat ;
-    mean2[iobs] /= (double)ndat ;
-    //std::cout << iobs << " " << mean[iobs] << " " << mean2[iobs] << std::endl ;
-  }
-
-
-  for(int id=0; id < ndat; id++) { 
-    if (id == 0) {
-      for(int it=0; it < tmax; it++) {
-	std::vector<double> ct;
-	for(int iobs = 0; iobs < NOBS; iobs++) {
-	  ct.push_back(observables[id][iobs]*observables[id+it][iobs]) ;
-	}
-	cor.push_back(ct);
+  for (int iobs = 0; iobs < NOBS - 1; iobs++)
+  {
+      std::vector<double> ct;
+      for (int t = 0; t <= tmax; t++)
+      {
+          double C = obtain_correlation_value(iobs, t);
+          ct.push_back(C);
       }
-    }
-    else {
-      for(int it=0; it < tmax; it++) {
-	for(int iobs = 0; iobs < NOBS; iobs++) {
-	  cor[it][iobs] += observables[id][iobs]*observables[id+it][iobs] ;
-	}
-      }
-    }
+      cor.push_back(ct);
   }
 
   fp << std::scientific ; 
-  for(int it=0; it < tmax; it++) {
-    fp << it << " " << T << " " ;
-    for(int iobs = 0; iobs < NOBS; iobs++) {
-      cor[it][iobs] /= (double)ndat ;
-      cor[it][iobs] = (cor[it][iobs] - mean[iobs]*mean[iobs])/
-	(mean2[iobs] - mean[iobs]*mean[iobs]) ;
-      fp << cor[it][iobs] << " ";
+  for(int t=0; t <= tmax; t++) 
+  {
+    fp << t << "," << T << "," ;
+    for(int iobs = 0; iobs < NOBS - 1; iobs++) 
+    {
+      fp << cor[iobs][t] << "," ;
     }
     fp << std::endl ;
   }
@@ -329,28 +338,33 @@ double obtain_correlations(int const tmax, std::ofstream &fp)
 
   // Calculate the Integrated Auto-Correlation time using "automatic windowing" procedure. (Ref. A. Sokal Monte Carlo Methods in Statistical Mechanics: Foundations and New Algorithms  https://link.springer.com/chapter/10.1007/978-1-4899-0319-8_6)
 
-  std::array<double,NOBS> tau_array ;  // store autocorrelation times for each observables at a given (T, L)
+  std::array<double,NOBS-1> tau_array ;  // store autocorrelation times for each observables at a given (T, L) (Except magnetization)
   
-  for(int iobs = 0; iobs < NOBS; iobs++) {
+  for(int iobs = 0; iobs < NOBS-1; iobs++) {
     double tau_sum = 0.50e0 ; 
-    int N = 50;
+    int N = 20;                    // start with some random cut-off and keep changing it accordingly if it's smaller than 6*tau.
     bool condition = true;
     int it = 1;
 
     while (condition)
     {
       for(it; it < N; it++) {  
-        tau_sum = tau_sum + (cor[it][iobs]);
+        tau_sum = tau_sum + (cor[iobs][it]);
       }
       condition = N <= (6*tau_sum);
-      std::cout << "tau_sum*6 = " << tau_sum*6 << "  N = " << N << "           "; // comment it out later, just for troubleshoot.
       // update N.
-      N = N*1.2;
+      N = N*1.3;
+      if (N > tmax) 
+      {
+        std::cout <<std::endl<<std::endl << "N > tmax ("<< N << ">" << tmax <<"). Choose a larger value of tmax" << std::endl ;
+        //exit(1);              // edit this out later.
+        return tau_sum;
+      }
     }
     N = N/1.2; //undoing the last update.
     tau_array[iobs] = tau_sum;
 
-    std::cout << "tau_sum = " << tau_sum << "  N = " << N << "           "; // comment it out later, just for troubleshoot.
+    std::cout << "tau_sum = " << tau_sum << "  N = " << N << std::endl; // comment it out later, just for troubleshoot.
   }
 
   double tau_int = *std::max_element(tau_array.begin(), tau_array.end()); // maxima of correlation time out of all observables
@@ -359,9 +373,11 @@ double obtain_correlations(int const tmax, std::ofstream &fp)
 }
 
 
+
+
 //--------------------------------------------------------------------
 void analyze_samples(std::string const casename, int const nblen,
-		     int const nsamsweeps, std::ofstream &fp)
+		     int const nsamsweeps, std::ofstream &fp, double cortime)
 {
   std::vector<std::array<double,NOBS>> meansamp, varsamp  ;
   std::array<double,NOBS> sum, sum2, avesamp, errsamp, aveflc, errflc ;
@@ -377,7 +393,7 @@ void analyze_samples(std::string const casename, int const nblen,
   }
 
   int ibin = 0;
-  for(int idat = 0; idat <= ndat; idat++) {            // let's say ndat = 5 and nblen = 2.
+  for(int idat = 0; idat <= ndat; idat++) {           
     if( ((idat > 0) & (idat%nblen == 0)) || idat == ndat ) {
       for(int iobs = 0; iobs < NOBS; iobs++) {
 	sum[iobs] /= (double)ibin ;
@@ -498,23 +514,25 @@ void analyze_samples(std::string const casename, int const nblen,
   std::cout << beta*beta*(avesamp[ENE2] - avesamp[ENE]*avesamp[ENE])*(double)nspins  << " " << beta*beta*(errsamp[ENE2])*(double)nspins << " " ;  
   std::cout << 1.e0-(avesamp[MAG4]/(3.e0*avesamp[MAG2]*avesamp[MAG2])) << " " ;
   std::cout << (avesamp[MAG2]/(avesamp[AMAG]*avesamp[AMAG])) << " " ;
+  std::cout << cortime << " ";
   std::cout << std::endl ;
 
   fp << std::scientific ;
-  fp << T << " " << L << " ";
-  fp << nsamsweeps << " " ;
-  fp << avesamp[ENE] << " " << errsamp[ENE] << " " ;
-  fp << avesamp[MAG] << " " << errsamp[MAG] << " " ;
-  fp << aveflc[ENE]*beta*beta*double(nspins) << " " << errflc[ENE]*beta*beta*double(nspins) << " " ;
-  fp << aveflc[MAG]*beta*(double)nspins << " " << errflc[MAG]*beta*double(nspins) << " " ;
-  fp << avesamp[AMAG] << " " << errsamp[AMAG] << " " ;
-  fp << aveflc[AMAG]*beta*(double)nspins << " " << errflc[AMAG]*beta*(double)nspins << " " ;
-  fp << avesamp[MAG2] << " " << errsamp[MAG2] << " " ;
-  fp << beta*(avesamp[MAG2] - avesamp[MAG]*avesamp[MAG])*(double)nspins  << " " << beta*(errsamp[MAG2])*(double)nspins << " " ;
-  fp << beta*(avesamp[MAG2] - avesamp[AMAG]*avesamp[AMAG])*(double)nspins  << " " << beta*(errsamp[MAG2])*(double)nspins << " " ;
-  fp << beta*beta*(avesamp[ENE2] - avesamp[ENE]*avesamp[ENE])*(double)nspins  << " " << beta*(errsamp[ENE2])*(double)nspins << " " ;
-  fp << 1.e0-(avesamp[MAG4]/(3.e0*avesamp[MAG2]*avesamp[MAG2])) << " " ;
-  fp << (avesamp[MAG2]/(avesamp[AMAG]*avesamp[AMAG])) << " " ;
+  fp << T << "," << L << ",";
+  fp << nsamsweeps << "," ;
+  fp << avesamp[ENE] << "," << errsamp[ENE] << "," ;
+  fp << avesamp[MAG] << "," << errsamp[MAG] << "," ;
+  fp << aveflc[ENE]*beta*beta*double(nspins) << "," << errflc[ENE]*beta*beta*double(nspins) << "," ;
+  fp << aveflc[MAG]*beta*(double)nspins << "," << errflc[MAG]*beta*double(nspins) << "," ;
+  fp << avesamp[AMAG] << "," << errsamp[AMAG] << "," ;
+  fp << aveflc[AMAG]*beta*(double)nspins << "," << errflc[AMAG]*beta*(double)nspins << "," ;
+  fp << avesamp[MAG2] << "," << errsamp[MAG2] << "," ;
+  fp << beta*(avesamp[MAG2] - avesamp[MAG]*avesamp[MAG])*(double)nspins  << "," << beta*(errsamp[MAG2])*(double)nspins << "," ;
+  fp << beta*(avesamp[MAG2] - avesamp[AMAG]*avesamp[AMAG])*(double)nspins  << "," << beta*(errsamp[MAG2])*(double)nspins << "," ;
+  fp << beta*beta*(avesamp[ENE2] - avesamp[ENE]*avesamp[ENE])*(double)nspins  << "," << beta*(errsamp[ENE2])*(double)nspins << "," ;
+  fp << 1.e0-(avesamp[MAG4]/(3.e0*avesamp[MAG2]*avesamp[MAG2])) << "," ;
+  fp << (avesamp[MAG2]/(avesamp[AMAG]*avesamp[AMAG])) << "," ;
+  fp << cortime << " ";
   fp << std::endl ;
 
 
@@ -533,12 +551,12 @@ int main(int argc, char** argv)
   casename = "tis" ;
   
   //lattice
-  L=128;
+  L=64;
 
   //energetics
   J=1.e0;
-  T=2.2e0;
-  beta=1.e0/T;
+  // T=2.2e0;
+  // beta=1.e0/T;
 
   //montecarlo
   int neqsweeps, nsamsweeps, nsampstp, nblen;
@@ -547,12 +565,13 @@ int main(int argc, char** argv)
   nsampstp = 32 ;
   nblen = 16;
 
-  bool sequential = true;
+  bool sequential = false;
   
   double Tmin=2.1e0, Tmax=2.40e0, dT=0.02e0;
 
   bool initialize_all_up = false, print_cor = false;
   int tmax=5000;
+  int N_out = 20000;  // number of measurements desired while using stepsize = 2*tau.
   
   std::cin >> parameters ;
 
@@ -628,6 +647,11 @@ int main(int argc, char** argv)
       tmax = parameters["tmax"].asInt() ;
       std::cout << "tmax = " << tmax << std::endl ;
     }
+    else if( cardname == "N_out" ) {
+      std::cout << "found N_out" << std::endl ;
+      tmax = parameters["N_out"].asInt() ;
+      std::cout << "N_out = " << N_out << std::endl ;
+    }
     else {
       std::cout << "Unknown parameter " << cardname << std::endl;
       exit(-1) ;	
@@ -642,6 +666,9 @@ int main(int argc, char** argv)
   auto filename = "output/"+casename+"_out.plt" ;
   std::ofstream foutp(filename);
 
+  auto measurement_file ="output/"+casename+"_measurements.plt" ;
+  std::ofstream fobs(measurement_file);
+
   //if(print_cor) {
     auto corfile = "output/"+casename+"_cor.plt" ;
     std::ofstream fcor(corfile) ;
@@ -650,39 +677,37 @@ int main(int argc, char** argv)
   T = Tmin;
   
   while (T <= Tmax+dT/2.e0) { 
-    //Define boltzmann weights
+    auto start = std::chrono::steady_clock::now();
+
     define_Boltzmann();
-    //initialize observable();
     initialize_observables();
-    //initialize to up state();
     if(initialize_all_up) initialize_state_to_all_up() ;    
 
-    //run
     run_monte_carlo(neqsweeps, nsamsweeps, 1, sequential) ;
 
     //find and print corrleations
+
     double tau;
-    tau = obtain_correlations(tmax,fcor) ;
+    tau = obtain_correlation_time(tmax, fcor, fobs) ;
     std::cout << "τ = " << tau << std::endl ;
 
-    //Define boltzmann weights
     define_Boltzmann();
-    //initialize observable();
     initialize_observables();
-    //initialize to up state();
     if(initialize_all_up) initialize_state_to_all_up() ;    
 
-    //run
     int nsampstp_new = 2*tau;
-    int nsamsweeps_new = 2*tau*5000;
+    int nsamsweeps_new = 2*tau*N_out;
     run_monte_carlo(neqsweeps, nsamsweeps_new, nsampstp_new, sequential) ;
 
-    //analyze and print output
-    analyze_samples(casename, nblen, nsamsweeps_new, foutp);
+    analyze_samples(casename, nblen, nsamsweeps_new, foutp, tau);
+
+    auto end = std::chrono::steady_clock::now();
+    std::cout<<std::chrono::duration_cast<std::chrono::seconds>(end-start).count()<< " seconds for this run. " << std::endl << std::endl;
 
 
     T+=dT;
   }
+  fobs.close() ;
   foutp.close() ;
   fcor.close() ;   
     return(1) ;

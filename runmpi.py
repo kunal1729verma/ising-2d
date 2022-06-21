@@ -52,12 +52,12 @@ print(sys.argv)
 
 if(myrank == 0) :
     #------------------------read input if it is there-----------------
-    if(len(sys.argv) > 1) :
+    if(len(sys.argv) > 1) :  # i.e. the line written in command line is of the form python runmpi.py [additional arguments], then read those [additional arguments]
         runpfile = sys.argv[1]
-        with open(runpfile) as runp_file:
+        with open(runpfile) as runp_file:  # the additional argument is usually the in.run.json parameter file, and here we are opening that file.
             runpdata = json.load(runp_file)
-            pprint(runpdata)
-            for key in runpdata:
+            pprint(runpdata)                        # pretty print the in.run.json file.
+            for key in runpdata:                    # Load all the parameter values.
                 if (key == 'casename') :
                     casename = runpdata['casename']
                 elif (key == 'Llist') :
@@ -119,11 +119,11 @@ if(myrank == 0) :
         'tmax' : tmax               
     }
     
-else :
+else :             # if rank =/= 0. so ideally, rank should be 0.
     rundat = None
     isingdat = None
 
-runcard = comm.bcast(rundat,root=MASTER)
+runcard = comm.bcast(rundat,root=MASTER)           # broadcast data from MASTER node i.e. rank 0 to all the other nodes.
 isingcard = comm.bcast(isingdat,root=MASTER)
 
 print(myrank,isingcard)
@@ -136,11 +136,11 @@ junk="jnk"
 infile= dot+junk+dot+"in"+int_to_string(myrank,4)+".json."+junk
 outfile = dot+junk+dot+"out"+int_to_string(myrank,4)+".out."+junk
 
-print(myrank,infile)
-print(myrank,outfile)
+print(myrank,infile)  # 0 .jnk.in0000.json.jnk
+print(myrank,outfile) # 0 .jnk.out0000.out.jnk
 
 
-for L in runcard['Llist'] :
+for L in runcard['Llist'] :  # [8, 16, 32]
     isingcard['L'] = L
     Tlist = []
     Tvallist =[]
