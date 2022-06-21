@@ -1,6 +1,6 @@
 # Ising Model implementation in C++
 
-To run the plotting scripts for data that is saved in outputs/, following are the instructions - 
+To run the plotting scripts for data that is saved in output/, following are the instructions - 
 1. For ``out_plot.gpl`` file, set the value of $i$ to 4, 6, 12, 20, 22, 25, or 26 for <E/N>, <M/N>, <|M|/N>, χ, C_v, U, and τ respectively.
 
 e.g. - ``i=26; load "scripts/out_plot.gpl"`` 
