@@ -6,11 +6,12 @@
     "dT": 0.01e0,
     "neqsweeps": 10000,
     "nsamsweeps": 200000,
-    "nblen": 20,
+    "nblen": 40,
     "nsampstp" : 1,
     "initialize_all_up" : true,
     "print_cor" : true,
     "sequential" : true,
-    "tmax" : 100
+    "tmax" : 100,
+    "N_out" : 20000
 }
 

@@ -42,12 +42,16 @@ std::map<int,double> embetaJ ;
 
 //observables
 #define NOBS 6
+#define DPQ 3   // derived physical quantities
 #define ENE 0
 #define ENE2 1
 #define AMAG 2
 #define MAG2 3
 #define MAG4 4
-#define MAG 5
+#define MAG 5 
+#define SUS 6  // susceptibility
+#define CV 7   // heat capacity
+#define U4 8   // binder's cumulant
 std::vector<std::array<double,NOBS>> observables ;
 
 
@@ -74,8 +78,6 @@ void define_Boltzmann( )
 
 }
 
-
-//--------------------------------------------------------------------
 	//--------------------------------------------------------------------	
 void define_lattice_and_initialize_state()	
 {	
@@ -236,33 +238,6 @@ void run_monte_carlo(int const neqsweeps, int const nsamsweeps, int const nsamps
 }
 
 //--------------------------------------------------------------------
-void statistics(std::vector<double> data, double &mean, double &err) {
-  int ndat = data.size() ;
-  double sum = 0.e0, sum2 = 0; ;
-  mean = 0.e0 ;
-  err=0.e0 ;
-
-  for(int i = 0; i < ndat; i++) {
-    auto val = data[i] ;
-    sum += val ;
-  }
-
-  mean = sum/((double)ndat) ;
-
-  //estimate error from jack knife data
-  sum2 = 0.e0 ;
-  for( int i = 0; i < ndat; i++) {
-    auto delval =  (sum - data[i])/((double)(ndat-1)) - mean ;
-    sum2 += delval*delval ;
-  }
-
-  
-  err = sqrt(sum2*(((double)(ndat-1))/((double) ndat))) ;
-
-  return ;
-}
-
-//--------------------------------------------------------------------
 
 double obtain_correlation_value(int iobs, int t)
 {
@@ -287,9 +262,6 @@ double obtain_correlation_value(int iobs, int t)
 }
 //--------------------------------------------------------------------
 
-
-
-//--------------------------------------------------------------------
 double obtain_correlation_time(int const tmax, std::ofstream &fp, std::ofstream &fo)
 {
   // saving observations in a data file
@@ -371,174 +343,143 @@ double obtain_correlation_time(int const tmax, std::ofstream &fp, std::ofstream 
 
   return tau_int;  // return the integrated correlation time
 }
+// ----------------------------------------------------------------------
 
-
-
-
-//--------------------------------------------------------------------
-void analyze_samples(std::string const casename, int const nblen,
-		     int const nsamsweeps, std::ofstream &fp, double cortime)
+double mean_data(std::vector<double> data)
 {
-  std::vector<std::array<double,NOBS>> meansamp, varsamp  ;
-  std::array<double,NOBS> sum, sum2, avesamp, errsamp, aveflc, errflc ;
-  
-  auto ndat = observables.size() ;
-
-  // std::cout << "Number of data points " << ndat << std::endl ;
-
-  for(int iobs = 0; iobs < NOBS ; iobs++) 
+  double average = 0;
+  for (int i = 0; i < data.size(); i++)
   {
-    sum[iobs] = 0.e0 ;
-    sum2[iobs] = 0.e0 ;
+    average += data[i];
   }
+  average/=data.size();
 
-  int ibin = 0;
-  for(int idat = 0; idat <= ndat; idat++) {           
-    if( ((idat > 0) & (idat%nblen == 0)) || idat == ndat ) {
-      for(int iobs = 0; iobs < NOBS; iobs++) {
-	sum[iobs] /= (double)ibin ;
-	sum2[iobs]/= (double)ibin ;
-	sum2[iobs]-= (sum[iobs]*sum[iobs]) ;
-	double factor;
-  if (ibin == 1) {
-    factor = 0;
-  }
-  else {
-    factor = sqrt((double(ibin))/((double)(ibin-1))) ;  // FOUND THE NAN ERROR. Whenever observables.size()%nblen = 1, then on the step when idat == ndat, => ibin = 1. This causes factor = NaN because we divide by zero!   
-  }
-	
-	sum2[iobs] *= factor; //unbaiased estimator of variance
-
-  // std::cout<< std::endl << "baka baka idat = " << idat << " baka baka nblen = " << nblen << std::endl;  // troubleshoot. 
-
-      }
-      meansamp.push_back(sum);
-      varsamp.push_back(sum2);
-
-      //std::cout << ibin << std::endl ;
-      //for(int iobs = 0; iobs < NOBS; iobs++) {
-      //std::cout << iobs << " " << sum[iobs] << " " << sum2[iobs] << std::endl ;
-      //}
-      //std::cout << sum << std::endl ;
-      //std::cout << sum2 << std::endl ;
-      
-      if(idat == ndat) break; 
-
-      for(int iobs = 0; iobs < NOBS; iobs++) {
-	      sum[iobs] = 0.e0 ;
-	      sum2[iobs] = 0.e0 ;
-      }
-      ibin=0 ;      
-    }
-    for(int iobs = 0; iobs < NOBS; iobs++) {
-      auto val = observables[idat][iobs] ;
-      sum[iobs] += val ;
-      sum2[iobs] += val*val ;
-    }
-    ibin++;
-  }
-
-  std::cout << "observables.size() = " << observables.size() << "  nblen = "<< nblen <<  " " <<std::endl;
-
-
-  //std::cout << "--------" << std::endl ;
-  for(int iobs = 0; iobs < NOBS; iobs++) {
-    double meanval, err ;
-    std::vector<double> data;
-    int ndat = meansamp.size() ;
-    for(int i = 0; i < ndat; i++)
-      {
-	data.push_back(meansamp[i][iobs]) ;
-      }
-    statistics(data,meanval,err) ;
-    avesamp[iobs] = meanval ;
-    errsamp[iobs] = err ;
-    //std::cout << iobs << " " << meanval << " " << sdval << std::endl ;
-
-    data.clear() ;
-    ndat = meansamp.size() ;
-    for(int i = 0; i < ndat; i++)
-      {
-	data.push_back(varsamp[i][iobs]) ;  
-      }
-    statistics(data,meanval,err) ;
-    aveflc[iobs] = meanval ;
-    errflc[iobs] = err ;
-
-    // TROUBLESHOOTING NAN ERROR (the problem was with the variable "factor" )
-    
-    // if (std::isnan(aveflc[iobs]))
-    // {
-    //   std::cout << std::endl;
-    //   std::cout << "Hi! NaN error just occured! Observable number = " << iobs <<  std::endl;          // trying to troubleshoot nan error.      
-    //   std::cout << "size of varsamp  = " << varsamp.size() <<std::endl;
-
-    //   for (int k = 0; k < data.size() ; k++)
-    //   {
-    //     std::cout << data[k] << " " ;
-    //   }
-    //   std::cout << std::endl << std::endl << "Actual observable measurements for Observable no. " << iobs << std::endl;
-
-    //   for (int idat = 0; idat <observables.size(); idat++)
-    //   {
-    //     std::cout << observables[idat][iobs] << " " ;
-    //     if (std::isnan(observables[idat][iobs]))
-    //     {
-    //       std::cout << std::endl << std::endl << "Found NaN" << std::endl << std::endl;
-    //     }
-    //   }
-    //   std::cout << std::endl << std::endl;
-    // }
-
-
-    //std::cout << iobs << " " << meanval << " " << sdval << std::endl ;
-    
-  }
-  
-
-  //std::cout << "Temperature        " << T << std::endl ;
-  //std::cout << "Mean Energy        " << mean[ENE] << std::endl ;
-  //std::cout << "Mean Magnetization " << mean[MAG] << std::endl ;
-
-  std::cout << T << " " << L << " ";
-  std::cout << nsamsweeps << " " ;
-  std::cout << avesamp[ENE] << " " << errsamp[ENE] << " " ;
-  std::cout << avesamp[MAG] << " " << errsamp[MAG] << " " ;
-  std::cout << aveflc[ENE]*beta*beta*double(nspins) << " " << errflc[ENE]*beta*beta*double(nspins) << " " ;
-  std::cout << aveflc[MAG]*beta*(double)nspins << " " << errflc[MAG]*beta*double(nspins) << " " ;
-  std::cout << avesamp[AMAG] << " " << errsamp[AMAG] << " " ;
-  std::cout << aveflc[AMAG]*beta*(double)nspins << " " << errflc[AMAG]*beta*(double)nspins << " " ;
-  std::cout << avesamp[MAG2] << " " << errsamp[MAG2] << " " ;
-  std::cout << beta*(avesamp[MAG2] - avesamp[MAG]*avesamp[MAG])*(double)nspins  << " " << beta*(errsamp[MAG2])*(double)nspins << " " ;
-  std::cout << beta*(avesamp[MAG2] - avesamp[AMAG]*avesamp[AMAG])*(double)nspins  << " " << beta*(errsamp[MAG2])*(double)nspins << " " ;
-  std::cout << beta*beta*(avesamp[ENE2] - avesamp[ENE]*avesamp[ENE])*(double)nspins  << " " << beta*beta*(errsamp[ENE2])*(double)nspins << " " ;  
-  std::cout << 1.e0-(avesamp[MAG4]/(3.e0*avesamp[MAG2]*avesamp[MAG2])) << " " ;
-  std::cout << (avesamp[MAG2]/(avesamp[AMAG]*avesamp[AMAG])) << " " ;
-  std::cout << cortime << " ";
-  std::cout << std::endl ;
-
-  fp << std::scientific ;
-  fp << T << "," << L << ",";
-  fp << nsamsweeps << "," ;
-  fp << avesamp[ENE] << "," << errsamp[ENE] << "," ;
-  fp << avesamp[MAG] << "," << errsamp[MAG] << "," ;
-  fp << aveflc[ENE]*beta*beta*double(nspins) << "," << errflc[ENE]*beta*beta*double(nspins) << "," ;
-  fp << aveflc[MAG]*beta*(double)nspins << "," << errflc[MAG]*beta*double(nspins) << "," ;
-  fp << avesamp[AMAG] << "," << errsamp[AMAG] << "," ;
-  fp << aveflc[AMAG]*beta*(double)nspins << "," << errflc[AMAG]*beta*(double)nspins << "," ;
-  fp << avesamp[MAG2] << "," << errsamp[MAG2] << "," ;
-  fp << beta*(avesamp[MAG2] - avesamp[MAG]*avesamp[MAG])*(double)nspins  << "," << beta*(errsamp[MAG2])*(double)nspins << "," ;
-  fp << beta*(avesamp[MAG2] - avesamp[AMAG]*avesamp[AMAG])*(double)nspins  << "," << beta*(errsamp[MAG2])*(double)nspins << "," ;
-  fp << beta*beta*(avesamp[ENE2] - avesamp[ENE]*avesamp[ENE])*(double)nspins  << "," << beta*(errsamp[ENE2])*(double)nspins << "," ;
-  fp << 1.e0-(avesamp[MAG4]/(3.e0*avesamp[MAG2]*avesamp[MAG2])) << "," ;
-  fp << (avesamp[MAG2]/(avesamp[AMAG]*avesamp[AMAG])) << "," ;
-  fp << cortime << " ";
-  fp << std::endl ;
-
-
-  return ;
+  return average;
 }
 
+
+double jackknife_error(std::vector<double> data, double mean)
+{
+  double summ = 0;
+  for (int i = 0; i < data.size(); i++)
+  {
+    summ += (data[i] - mean)*(data[i] - mean); 
+  }
+
+  double fact = (double)(data.size()-1)/(data.size());
+  double jack_error = sqrt(fact*summ);
+  
+  return jack_error;
+}
+
+
+void analyze_samples(int const nblen, std::ofstream &fp, double cortime)
+{
+  auto ndat = observables.size() ; 
+  
+  std::vector<std::vector<double>> bin_avg;   
+  std::vector <double> obs_bin_avg;
+    
+  for (int iobs = 0; iobs < NOBS; iobs++)
+  {
+    double avg = 0;
+    obs_bin_avg.clear();
+    double count = 0;
+    for (int i = 0; i < ndat; i++)
+    {
+      avg += observables[i][iobs];
+      count +=1;
+            
+      if ((i+1)%nblen == 0 || i == ndat - 1)
+      {
+        avg /= count;
+        obs_bin_avg.push_back(avg);
+        avg = 0;
+        count = 0;
+      }
+    }
+  bin_avg.push_back(obs_bin_avg);
+  }
+
+  double nbins = bin_avg[0].size();
+  // bin_avg[iobs][j] is the mean of elements in bin "j" of observable "iobs" measurements.
+
+  // Now we also need to insert the binned averages of derived physical quantities (chi, C_v, U_4)into this vector.
+
+  std::vector<double> susc;
+  std::vector<double> heatcap;
+  std::vector<double> bindercum;
+
+  for (int j = 0; j < nbins; j++)
+  {
+    susc.push_back(beta*(double)nspins*(bin_avg[MAG2][j] - bin_avg[AMAG][j]*bin_avg[AMAG][j]));
+    heatcap.push_back(beta*beta*(double)nspins*(bin_avg[ENE2][j] - bin_avg[ENE][j]*bin_avg[ENE][j]));
+    bindercum.push_back(1.e0-(bin_avg[MAG4][j]/(3.e0*bin_avg[MAG2][j]*bin_avg[MAG2][j])));
+  }
+
+  bin_avg.push_back(susc);
+  bin_avg.push_back(heatcap);
+  bin_avg.push_back(bindercum);
+
+  // At this point, bin_avg[iobs][j] is the mean of elements in bin "j" of the physical quantity "iobs" measurements. The label for indexing physical quantities i.e. "iobs" goes from 0 to 8, with 6, 7, 8 now representing susceptibility, heat capacity, and binder's cumulant.
+
+  std::array<double, NOBS+DPQ> obs_dpq_means;
+  for (int iobs=0; iobs < NOBS+DPQ; iobs++)
+  {
+    obs_dpq_means[iobs] = mean_data(bin_avg[iobs]);
+  }
+  // Now we also have the grand means of all the observables + derived quantities.
+
+  
+  std::vector<std::vector<double>> jackknife_bin_avg;
+  std::vector<double> temp;
+  for (int iobs = 0; iobs < NOBS+DPQ; iobs++)
+  {
+    temp.clear();
+    for (int j = 0; j < nbins; j++)
+    {
+      temp.push_back( (ndat*obs_dpq_means[iobs] - nblen*bin_avg[iobs][j])/(ndat - nblen) );
+    }
+    jackknife_bin_avg.push_back(temp);
+  }
+
+  std::array<double, NOBS+DPQ> obs_dpq_jackknife_errors;
+  for (int iobs = 0; iobs < NOBS+DPQ; iobs++)
+  {
+    obs_dpq_jackknife_errors[iobs] = jackknife_error(jackknife_bin_avg[iobs], obs_dpq_means[iobs]);
+  }
+
+  // Printing and writing the means and the errors obtained using JackKnife.
+  std::cout << T << " " << L << " " << cortime << " "; 
+  std::cout << observables.size() << " " << nblen << " " << nbins << " ";
+  std::cout << obs_dpq_means[ENE] << " " << obs_dpq_jackknife_errors[ENE] << " " ;
+  std::cout << obs_dpq_means[ENE2] << " " << obs_dpq_jackknife_errors[ENE2] << " " ;
+  std::cout << obs_dpq_means[AMAG] << " " << obs_dpq_jackknife_errors[AMAG] << " " ;
+  std::cout << obs_dpq_means[MAG2] << " " << obs_dpq_jackknife_errors[MAG2] << " " ;
+  std::cout << obs_dpq_means[MAG4] << " " << obs_dpq_jackknife_errors[MAG4] << " " ;
+  std::cout << obs_dpq_means[MAG] << " " << obs_dpq_jackknife_errors[MAG] << " " ;
+  std::cout << obs_dpq_means[SUS] << " " << obs_dpq_jackknife_errors[SUS] << " " ;
+  std::cout << obs_dpq_means[CV] << " " << obs_dpq_jackknife_errors[CV] << " " ;
+  std::cout << obs_dpq_means[U4] << " " << obs_dpq_jackknife_errors[U4] << " " ;
+  std::cout << std::endl;
+
+
+  fp << std::scientific ;
+  fp << T << "," << L << "," << cortime << ","; 
+  fp << observables.size() << "," << nblen << "," << nbins << ",";
+  fp << obs_dpq_means[ENE] << "," << obs_dpq_jackknife_errors[ENE] << "," ;
+  fp << obs_dpq_means[ENE2] << "," << obs_dpq_jackknife_errors[ENE2] << "," ;
+  fp << obs_dpq_means[AMAG] << "," << obs_dpq_jackknife_errors[AMAG] << "," ;
+  fp << obs_dpq_means[MAG2] << "," << obs_dpq_jackknife_errors[MAG2] << "," ;
+  fp << obs_dpq_means[MAG4] << "," << obs_dpq_jackknife_errors[MAG4] << "," ;
+  fp << obs_dpq_means[MAG] << "," << obs_dpq_jackknife_errors[MAG] << "," ;
+  fp << obs_dpq_means[SUS] << "," << obs_dpq_jackknife_errors[SUS] << "," ;
+  fp << obs_dpq_means[CV] << "," << obs_dpq_jackknife_errors[CV] << "," ;
+  fp << obs_dpq_means[U4] << "," << obs_dpq_jackknife_errors[U4] << "," ;
+  fp << std::endl;
+
+  return;
+}
 
 //--------------------------------------------------------------------
 int main(int argc, char** argv)
@@ -696,10 +637,10 @@ int main(int argc, char** argv)
     if(initialize_all_up) initialize_state_to_all_up() ;    
 
     int nsampstp_new = 2*tau;
-    int nsamsweeps_new = 2*tau*N_out;
+    int nsamsweeps_new = nsampstp_new*N_out;
     run_monte_carlo(neqsweeps, nsamsweeps_new, nsampstp_new, sequential) ;
 
-    analyze_samples(casename, nblen, nsamsweeps_new, foutp, tau);
+    analyze_samples(nblen, foutp, tau);
 
     auto end = std::chrono::steady_clock::now();
     std::cout<<std::chrono::duration_cast<std::chrono::seconds>(end-start).count()<< " seconds for this run. " << std::endl << std::endl;
