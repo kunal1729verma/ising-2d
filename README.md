@@ -1,6 +1,6 @@
 # Ising Model implementation in C++
 
-The above code uses the Metropolis–Hastings MCMC algorithm  to simulate the 2D Ising Model. We first perform a series of measurements of various observables, namely - $E$, $E^2$, $|M|$, $M^2$, $M^4$, $M$, where $E$ is the energy density and $M$ is the magnetization density in the system. On collecting these measurements, we calculate the autocorrelation times of all the observables (except $M$), and define the maximum of them as the autocorrelation time.
+The above code uses the Metropolis–Hastings MCMC algorithm  to simulate the 2D Ising Model. We first perform a series of measurements of various observables, namely - $E, E^2, |M|, M^2, M^4, M$, where $E$ is the energy density and $M$ is the magnetization density in the system. On collecting these measurements, we calculate the autocorrelation times of all the observables (except $M$), and define the maximum of them as the autocorrelation time.
 
 Once we obtain the autocorrelation time $\tau$, we run the Metropolis algorithm again for $2\tau \times N_\text{out}$ times where the $N_\text{out}$ is our desired number of measurements. We now take measurements of the observables every $2\tau$ MC steps to ensure uncorrelated data. 
 
