@@ -110,49 +110,40 @@ inline int Fold(const int i, const int N) {
 }	
 
 //--------------------------------------------------------------------
-double energy_density()
+std::array<double,2> energy_density_and_magnetization()
 {
   int iene=0;
-
-  for(int ix = 0; ix < L; ix++) {
-    for( int iy = 0; iy < L; iy++) {
-      auto ixp = Fold(ix+1,L);
-      auto iyp = Fold(iy+1,L);
-      //xbond
-      iene += spin[(std::array<int,2>){ix,iy}]*spin[(std::array<int,2>){ixp,iy}];
-      //ybond
-      iene += spin[(std::array<int,2>){ix,iy}]*spin[(std::array<int,2>){ix,iyp}];
-    }
-  }
-
-  return(-(J*(double)iene)/((double)nspins)) ;
-}
-
-
-//--------------------------------------------------------------------
-double magnetization()
-{
   int stot=0;
+  std::array<double,2> em_data;
 
   for(int ix = 0; ix < L; ix++) {
     for( int iy = 0; iy < L; iy++) {
       auto ixp = Fold(ix+1,L);
       auto iyp = Fold(iy+1,L);
-      //xbond
+
       stot += spin[(std::array<int,2>){ix,iy}] ;
+      iene += spin[(std::array<int,2>){ix,iy}]*spin[(std::array<int,2>){ixp,iy}];
+      iene += spin[(std::array<int,2>){ix,iy}]*spin[(std::array<int,2>){ix,iyp}];
+
     }
   }
 
-  return(((double)stot)/((double)nspins)) ;
+  em_data[0] = -(J*(double)iene)/((double)nspins);
+  em_data[1] = ((double)stot)/((double)nspins);
+
+  return(em_data) ;
 }
 
 //--------------------------------------------------------------------
 void perform_measurements()
 {
+  std::array<double,2> e_m;
+  e_m = energy_density_and_magnetization();
+
   double edens, edens2, mag, amag, mag2, mag4 ;
-  edens = energy_density();
+  edens = e_m[0];
   edens2 = edens*edens ;
-  mag = magnetization();
+  mag = e_m[1];
   amag = abs(mag);
   mag2 = mag*mag ;
   mag4 = mag2*mag2;
@@ -206,7 +197,6 @@ void monte_carlo_sweep_random()
   return ;
 }
 
-
 //--------------------------------------------------------------------
 void run_monte_carlo(int const neqsweeps, int const nsamsweeps, int const nsampstp, bool const sequential)
 {
@@ -238,7 +228,6 @@ void run_monte_carlo(int const neqsweeps, int const nsamsweeps, int const nsamps
 }
 
 //--------------------------------------------------------------------
-
 double obtain_correlation_value(int iobs, int t)
 {
   double mean = 0.e0, mean2 = 0.e0;
@@ -261,7 +250,6 @@ double obtain_correlation_value(int iobs, int t)
   return C;
 }
 //--------------------------------------------------------------------
-
 double obtain_correlation_time(int const tmax, std::ofstream &fp, std::ofstream &fo)
 {
   // saving observations in a data file
@@ -343,8 +331,8 @@ double obtain_correlation_time(int const tmax, std::ofstream &fp, std::ofstream 
 
   return tau_int;  // return the integrated correlation time
 }
-// ----------------------------------------------------------------------
 
+// ----------------------------------------------------------------------
 double mean_data(std::vector<double> data)
 {
   double average = 0;
@@ -357,7 +345,7 @@ double mean_data(std::vector<double> data)
   return average;
 }
 
-
+//--------------------------------------------------------------------
 double jackknife_error(std::vector<double> data, double mean)
 {
   double summ = 0;
@@ -372,7 +360,7 @@ double jackknife_error(std::vector<double> data, double mean)
   return jack_error;
 }
 
-
+//--------------------------------------------------------------------
 void analyze_samples(int const nblen, std::ofstream &fp, double cortime)
 {
   auto ndat = observables.size() ; 
@@ -482,6 +470,9 @@ void analyze_samples(int const nblen, std::ofstream &fp, double cortime)
 }
 
 //--------------------------------------------------------------------
+//--------------------------------------------------------------------
+//--------------------------------------------------------------------
+
 int main(int argc, char** argv)
 {
   //PramsReader reader;
@@ -618,19 +609,26 @@ int main(int argc, char** argv)
   T = Tmin;
   
   while (T <= Tmax+dT/2.e0) { 
-    auto start = std::chrono::steady_clock::now();
-
+    auto start1 = std::chrono::steady_clock::now();
     define_Boltzmann();
     initialize_observables();
     if(initialize_all_up) initialize_state_to_all_up() ;    
 
     run_monte_carlo(neqsweeps, nsamsweeps, 1, sequential) ;
+    auto end1 = std::chrono::steady_clock::now();
+
+    std::cout<<std::chrono::duration_cast<std::chrono::seconds>(end1-start1).count()<< " seconds for Monte Carlo (for autocorrelation estimation). " << std::endl << std::endl;
+
 
     //find and print corrleations
 
+    auto start2 = std::chrono::steady_clock::now();
     double tau;
     tau = obtain_correlation_time(tmax, fcor, fobs) ;
     std::cout << "τ = " << tau << std::endl ;
+    auto end2 = std::chrono::steady_clock::now();
+
+    std::cout<<std::chrono::duration_cast<std::chrono::seconds>(end2-start2).count()<< " seconds for calculating Autocorrelations and Autocorrelation Time τ. " << std::endl << std::endl;
 
     define_Boltzmann();
     initialize_observables();
@@ -638,13 +636,17 @@ int main(int argc, char** argv)
 
     int nsampstp_new = 2*tau;
     int nsamsweeps_new = nsampstp_new*N_out;
+    auto start3 = std::chrono::steady_clock::now();    
     run_monte_carlo(neqsweeps, nsamsweeps_new, nsampstp_new, sequential) ;
+    auto end3 = std::chrono::steady_clock::now();
 
+    std::cout<<std::chrono::duration_cast<std::chrono::seconds>(end3-start3).count()<< " seconds for the Monte Carlo finale. " << std::endl << std::endl;
+
+    auto start4 = std::chrono::steady_clock::now();    
     analyze_samples(nblen, foutp, tau);
+    auto end4 = std::chrono::steady_clock::now();
 
-    auto end = std::chrono::steady_clock::now();
-    std::cout<<std::chrono::duration_cast<std::chrono::seconds>(end-start).count()<< " seconds for this run. " << std::endl << std::endl;
-
+    std::cout<<std::chrono::duration_cast<std::chrono::seconds>(end4-start4).count()<< " seconds for calculating means and errors for physical qtys. " << std::endl << std::endl;
 
     T+=dT;
   }

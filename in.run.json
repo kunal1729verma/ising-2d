@@ -1,14 +1,16 @@
 {
-    "casename": "check",
+    "casename": "mpi",
     "Llist": [8,16,32],
     "Tmin": 2.0e0,
     "Tmax": 2.50e0,
     "dT": 0.01e0,
-    "neqsweeps": 10000,
-    "nsamsweeps": 500000,
-    "nblen": 200,
-    "nsampstp" : 10,
-    "initialize_all_up" : false,
+    "neqsweeps": 5000,
+    "nsamsweeps": 50000,
+    "nblen": 25,
+    "nsampstp" : 1,
+    "initialize_all_up" : true,
     "print_cor" : true,
-    "sequential" : true
+    "sequential" : true,
+    "tmax" : 500,
+    "N_out" : 10000
 }
