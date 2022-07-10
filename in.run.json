@@ -1,16 +1,16 @@
 {
     "casename": "mpi",
-    "Llist": [8,16,32],
+    "Llist": [2,4,8],
     "Tmin": 2.0e0,
     "Tmax": 2.50e0,
-    "dT": 0.01e0,
-    "neqsweeps": 5000,
-    "nsamsweeps": 50000,
-    "nblen": 25,
+    "dT": 0.02e0,
+    "neqsweeps": 10000,
+    "nsamsweeps": 200000,
+    "nblen": 40,
     "nsampstp" : 1,
     "initialize_all_up" : true,
     "print_cor" : true,
     "sequential" : true,
-    "tmax" : 500,
+    "tmax" : 3000,
     "N_out" : 10000
 }

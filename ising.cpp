@@ -253,15 +253,15 @@ double obtain_correlation_value(int iobs, int t)
 double obtain_correlation_time(int const tmax, std::ofstream &fp, std::ofstream &fo)
 {
   // saving observations in a data file
-  for (int it = 0; it < observables.size(); it ++)            // fo is the new ofstream variable that I'm using to output a file of observable measurements.
-  {
-    fo << it << "," << T << "," ;
-    for (int iobs = 0; iobs < NOBS ; iobs ++)
-    {
-      fo << observables[it][iobs] << ",";
-    }
-    fo << std::endl;
-  }
+  // for (int it = 0; it < observables.size(); it ++)            // fo is the new ofstream variable that I'm using to output a file of observable measurements.
+  // {
+  //   fo << it << "," << T << "," ;
+  //   for (int iobs = 0; iobs < NOBS ; iobs ++)
+  //   {
+  //     fo << observables[it][iobs] << ",";
+  //   }
+  //   fo << std::endl;
+  // }
 
   auto ndat = observables.size() - tmax;
 
