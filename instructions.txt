@@ -1,0 +1,11 @@
+Instructions to run code - 
+
+1. For a single lattice size (without MPI script).  $./ising < in.ising.json
+
+2. For multiple lattice sizes (or when using MPI).  $mpirun --use-hwthread-cpus python3 runmpi.py in.run.json
+
+
+
+in.ising.json - parameter file for single lattice size run (without MPI).
+in.run.json - parameter file for multiple lattice size run (or when using MPI)
+

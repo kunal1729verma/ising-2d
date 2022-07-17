@@ -10,7 +10,6 @@
 #include <math.h>
 #include <random>
 
-
 #include "Params.hpp"
 
 #include <cmath>
@@ -25,16 +24,16 @@
 //Random number generator auto initialization
 std::random_device rd;
 std::mt19937 gen(rd());
-std::uniform_real_distribution<> uniform(0.e0,1.e0) ;
-
+std::uniform_real_distribution<> uniform_real(0.e0,1.e0) ;
+std::uniform_int_distribution<> uniform_int(0,1) ;
 
 
 //info regarding lattice points and spins
 int L;
 std::vector<std::array<int,2>> coord ;
-std::map<std::array<int,2>,int> which_site;
+std::map<std::array<int,2>,int> which_site;  // site index "n". ix = n%L, iy = n//L.
 int nspins;
-std::map<std::array<int,2>,int> spin;
+std::map<std::array<int,2>,int> spin;       // spins on the lattice
 
 //energetics
 double T, beta, J;
@@ -63,22 +62,22 @@ void initialize_observables()
 
 
 //--------------------------------------------------------------------
-void define_Boltzmann( )
+void define_Boltzmann()
 {
-  embetaJ.clear() ;
+  embetaJ.clear();
 
   beta = 1.e0/T;
+
+  embetaJ[2] = exp(-2.e0*beta*J);   // required for the cluster algorithm.
   
   embetaJ[4] = exp(-4.e0*beta*J);      // we only need embeta[4] and embeta[8] because the only values that can be taken by iene is -8, -4, 0 , 4, 8 and we simply flip the spin if iene <=0, so the only boltzmann probabilities required are for iene = 4 or iene = 8.
   embetaJ[8] = exp(-8.e0*beta*J);
 
   //std::cout << embetaJ[4] << std::endl ;
   //std::cout << embetaJ[8] << std::endl ;
-
-
 }
 
-	//--------------------------------------------------------------------	
+//--------------------------------------------------------------------	
 void define_lattice_and_initialize_state()	
 {	
   int is ;	
@@ -88,6 +87,7 @@ void define_lattice_and_initialize_state()
       coord.push_back({ix,iy}) ;	
       which_site[(std::array<int,2>){ix,iy}] = is ;	
       spin[(std::array<int,2>){ix,iy}] = UP ;	
+    //spin[(std::array<int,2>){ix,iy}] = uniform_int(gen)*2 - 1;  // for a hot start with equal spin ups and downs.
       is++;	
     }	
   }	
@@ -153,6 +153,140 @@ void perform_measurements()
 }
 
 //--------------------------------------------------------------------
+// WOLFF CLUSTER ALGORITHM.
+//--------------------------------------------------------------------
+std::vector<int> identical_nbrs(int initial_seed)   
+{
+  auto ix = coord[initial_seed][0] ;
+  auto iy = coord[initial_seed][1] ;
+
+  std::array<int,2> r, rpx, rmx, rpy, rmy;
+  std::vector<int> id_nbrs;
+
+  r = {ix,iy} ;
+  rpx = {Fold(ix+1,L),iy} ;
+  rmx = {Fold(ix-1,L),iy} ;
+  rpy = {ix,Fold(iy+1,L)} ;
+  rmy = {ix,Fold(iy-1,L)} ;
+
+  if (spin[r] == spin[rpx]){
+    id_nbrs.push_back(which_site[rpx]);
+  }
+  
+  if (spin[r] == spin[rpy]){
+    id_nbrs.push_back(which_site[rpy]);
+  }
+  
+  if (spin[r] == spin[rmx]){
+    id_nbrs.push_back(which_site[rmx]);
+  }
+
+  if (spin[r] == spin[rmy]){
+    id_nbrs.push_back(which_site[rmy]);
+  }
+
+  return id_nbrs;
+}
+
+//--------------------------------------------------------------------
+std::array<std::vector<int>,2> add_to_cluster(std::vector<int> id_nbrs, std::array<std::vector<int>,2> C_and_F_new, double p)
+{
+  std::vector<int> C, F_new;
+
+  C = C_and_F_new[0];
+  F_new = C_and_F_new[1];
+
+  for (int j = 0; j < id_nbrs.size(); j++)
+  {
+    if(!(std::find(C.begin(), C.end(), id_nbrs[j]) != C.end()))   // if id_nbrs[j] doesn't belong to the vector C
+    {
+      if (uniform_real(gen) < p)
+      {
+        C.push_back(id_nbrs[j]);
+        F_new.push_back(id_nbrs[j]);
+      }
+    }
+  }
+  C_and_F_new[0] = C;
+  C_and_F_new[1] = F_new;
+  
+  return C_and_F_new;
+}
+
+//--------------------------------------------------------------------
+int cluster_flip(int initial_seed)
+{
+  std::vector<int> C, F_old, F_new, id_nbrs;
+  std::array<std::vector<int>,2> C_and_F_new;
+
+  C.push_back(initial_seed);
+  F_old.push_back(initial_seed);
+
+  double p = 1 - embetaJ[2];
+
+  while (F_old.size()!=0)
+  {
+    F_new.clear();
+    for (int i = 0; i < F_old.size(); i++)
+    {
+      id_nbrs = identical_nbrs(F_old[i]);
+      C_and_F_new[0] = C;
+      C_and_F_new[1] = F_new;
+      C_and_F_new = add_to_cluster(id_nbrs, C_and_F_new, p);
+      C = C_and_F_new[0];
+      F_new = C_and_F_new[1];
+    }
+    F_old = F_new;
+  }
+
+  for (int i = 0; i < C.size(); i ++ )
+  {
+    int ix = (int)(C[i]/L);
+    int iy = (int)(C[i]%L);
+    spin[(std::array<int,2>){ix,iy}]*=-1;   // spin flip of the cluster
+  }
+
+  return C.size();
+}
+
+//--------------------------------------------------------------------
+double run_wolff_cluster(int const neqsweeps, int const nsamsweeps, int const nsampstp)
+{
+  std::vector<int> C_sizes;
+  int C_len;
+
+  // Equilibration process. 
+  for(int isw = 0 ; isw < neqsweeps ; isw++)
+  {
+    auto initial_seed = (int)(uniform_real(gen)*(double)nspins);
+    C_len = cluster_flip(initial_seed);
+//  C_sizes.push_back(C_len);
+  }
+ 
+ // Thermalized.
+  for(int isw = 0 ; isw < nsamsweeps ; isw++)
+  {
+    auto initial_seed = (int)(uniform_real(gen)*(double)nspins);
+    C_len = cluster_flip(initial_seed);
+    C_sizes.push_back(C_len);  
+
+    if( isw%nsampstp == 0 ) perform_measurements() ;
+  }
+
+  double C_avg = 0.0e0;
+  for (int i = 0; i < C_sizes.size(); i++)
+  {
+    C_avg += C_sizes[i]; 
+  }
+  C_avg /= C_sizes.size();
+
+  return C_avg;
+}
+
+
+//--------------------------------------------------------------------
+// METROPOLIS-HASTINGS ALGORITHM.
+//--------------------------------------------------------------------
 void flip_spin(int const ix, int const iy)
 {
   int iene = 0;
@@ -168,7 +302,7 @@ void flip_spin(int const ix, int const iy)
   iene = 2*spin[r]*(spin[rpx]+spin[rmx]+spin[rpy]+spin[rmy]);
 
 
-  if ( (iene <= 0) || ( uniform(gen) < embetaJ[iene]) ) spin[r] *= -1;
+  if ( (iene <= 0) || ( uniform_real(gen) < embetaJ[iene]) ) spin[r] *= -1;
   return;
 }
 
@@ -188,7 +322,7 @@ void monte_carlo_sweep_random()
 {
 
   for(int is = 0; is < nspins ; is++) {
-    auto spin_to_flip = (int)(uniform(gen)*(double)nspins);
+    auto spin_to_flip = (int)(uniform_real(gen)*(double)nspins);
     auto ix = coord[spin_to_flip][0] ;
     auto iy = coord[spin_to_flip][1] ;
     flip_spin(ix,iy);
@@ -198,7 +332,7 @@ void monte_carlo_sweep_random()
 }
 
 //--------------------------------------------------------------------
-void run_monte_carlo(int const neqsweeps, int const nsamsweeps, int const nsampstp, bool const sequential)
+void run_metropolis(int const neqsweeps, int const nsamsweeps, int const nsampstp, bool const sequential)
 {
   //Equilibration
   //std::cout << "Running " << neqsweeps << " equilibrium sweeps..." ;
@@ -253,15 +387,15 @@ double obtain_correlation_value(int iobs, int t)
 double obtain_correlation_time(int const tmax, std::ofstream &fp, std::ofstream &fo)
 {
   // saving observations in a data file
-  // for (int it = 0; it < observables.size(); it ++)            // fo is the new ofstream variable that I'm using to output a file of observable measurements.
-  // {
-  //   fo << it << "," << T << "," ;
-  //   for (int iobs = 0; iobs < NOBS ; iobs ++)
-  //   {
-  //     fo << observables[it][iobs] << ",";
-  //   }
-  //   fo << std::endl;
-  // }
+  for (int it = 0; it < observables.size(); it ++)            // fo is the new ofstream variable that I'm using to output a file of observable measurements.
+  {
+    fo << it << "," << T << "," ;
+    for (int iobs = 0; iobs < NOBS ; iobs ++)
+    {
+      fo << observables[it][iobs] << ",";
+    }
+    fo << std::endl;
+  }
 
   auto ndat = observables.size() - tmax;
 
@@ -361,8 +495,19 @@ double jackknife_error(std::vector<double> data, double mean)
 }
 
 //--------------------------------------------------------------------
-void analyze_samples(int const nblen, std::ofstream &fp, double cortime)
+void analyze_samples(int const nblen, std::ofstream &fp, double cortime, std::ofstream &fu)
 {
+  // saving uncorrelated measurements in a data file
+  for (int it = 0; it < observables.size(); it ++)     
+  {
+    fu << it << "," << T << "," ;
+    for (int iobs = 0; iobs < NOBS ; iobs ++)
+    {
+      fu << observables[it][iobs] << ",";
+    }
+    fu << std::endl;
+  }
+  
   auto ndat = observables.size() ; 
   
   std::vector<std::vector<double>> bin_avg;   
@@ -498,12 +643,14 @@ int main(int argc, char** argv)
   nblen = 16;
 
   bool sequential = false;
+  bool clust = true;
   
   double Tmin=2.1e0, Tmax=2.40e0, dT=0.02e0;
 
   bool initialize_all_up = false, print_cor = false;
   int tmax=5000;
-  int N_out = 20000;  // number of measurements desired while using stepsize = 2*tau.
+  int N_out = 500;  // number of measurements desired while using stepsize = 2*tau.
+  // NOT READING N_out from the in.ising.json file for some reason.
   
   std::cin >> parameters ;
 
@@ -574,6 +721,11 @@ int main(int argc, char** argv)
       sequential = parameters["sequential"].asBool() ;
       std::cout << "sequential = " << sequential << std::endl ;
     }
+    else if( cardname == "cluster" ) {
+      std::cout << "found cluster" << std::endl ;
+      clust = parameters["cluster"].asBool() ;
+      std::cout << "cluster = " << clust << std::endl ;
+    }
     else if( cardname == "tmax" ) {
       std::cout << "found tmax" << std::endl ;
       tmax = parameters["tmax"].asInt() ;
@@ -581,7 +733,7 @@ int main(int argc, char** argv)
     }
     else if( cardname == "N_out" ) {
       std::cout << "found N_out" << std::endl ;
-      tmax = parameters["N_out"].asInt() ;
+      N_out   = parameters["N_out"].asInt() ;
       std::cout << "N_out = " << N_out << std::endl ;
     }
     else {
@@ -601,6 +753,9 @@ int main(int argc, char** argv)
   auto measurement_file ="output/"+casename+"_measurements.plt" ;
   std::ofstream fobs(measurement_file);
 
+  auto uncor_data = "output/" + casename + "_uncorrdata.plt";
+  std::ofstream funcorr(uncor_data);
+
   //if(print_cor) {
     auto corfile = "output/"+casename+"_cor.plt" ;
     std::ofstream fcor(corfile) ;
@@ -609,50 +764,83 @@ int main(int argc, char** argv)
   T = Tmin;
   
   while (T <= Tmax+dT/2.e0) { 
+    double C_avg = 0.0e0;
+
+    std::cout << "--------------------------------------------------------------" << std::endl;
+    std::cout << "L = " << L << ", T = " << T << std::endl;
+    std::cout << "PART 1" << std::endl;
+    // preliminary monte carlo (part 1).
+
     auto start1 = std::chrono::steady_clock::now();
     define_Boltzmann();
     initialize_observables();
     if(initialize_all_up) initialize_state_to_all_up() ;    
 
-    run_monte_carlo(neqsweeps, nsamsweeps, 1, sequential) ;
+    if (clust)    {
+      C_avg = run_wolff_cluster(neqsweeps, nsamsweeps, 1);
+    }
+    else    {
+      run_metropolis(neqsweeps, nsamsweeps, 1, sequential) ;
+    }
     auto end1 = std::chrono::steady_clock::now();
 
-    std::cout<<std::chrono::duration_cast<std::chrono::seconds>(end1-start1).count()<< " seconds for Monte Carlo (for autocorrelation estimation). " << std::endl << std::endl;
+    std::cout<<std::chrono::duration_cast<std::chrono::seconds>(end1-start1).count()<< " seconds for Monte Carlo part 1 to calculate tau.  (sweeps = " << nsamsweeps << ")" << std::endl<< std::endl;
 
 
-    //find and print corrleations
-
+    //find and print autocorrleations (part 2).
+    std::cout << "PART 2" << std::endl;
     auto start2 = std::chrono::steady_clock::now();
     double tau;
     tau = obtain_correlation_time(tmax, fcor, fobs) ;
-    std::cout << "τ = " << tau << std::endl ;
+    if (clust)    {
+      std::cout << "<c> (avg cluster size) = " << C_avg << std::endl;
+      std::cout << "τ (scaled by <c>/N_spins) = " << (double)(tau*(C_avg/nspins)) << std::endl ;
+     // rescaling the time unit for wolff cluster for relevant comparisions of times.
+    }
+    else    {
+      std::cout << "τ = " << tau << std::endl ;
+    }
     auto end2 = std::chrono::steady_clock::now();
 
-    std::cout<<std::chrono::duration_cast<std::chrono::seconds>(end2-start2).count()<< " seconds for calculating Autocorrelations and Autocorrelation Time τ. " << std::endl << std::endl;
+    std::cout<<std::chrono::duration_cast<std::chrono::seconds>(end2-start2).count()<< " seconds for calculating autocorrelation time τ. " << std::endl<< std::endl;
 
+    // running monte carlo with known autocorrelation times (part 3).
+    std::cout << "PART 3" << std::endl;
     define_Boltzmann();
     initialize_observables();
     if(initialize_all_up) initialize_state_to_all_up() ;    
 
     int nsampstp_new = 2*tau;
     int nsamsweeps_new = nsampstp_new*N_out;
-    auto start3 = std::chrono::steady_clock::now();    
-    run_monte_carlo(neqsweeps, nsamsweeps_new, nsampstp_new, sequential) ;
+    auto start3 = std::chrono::steady_clock::now(); 
+    if (clust)    {
+      C_avg = run_wolff_cluster(neqsweeps, nsamsweeps_new, nsampstp_new);
+    }
+    else    {
+      run_metropolis(neqsweeps, nsamsweeps_new, nsampstp_new, sequential);
+    }       
     auto end3 = std::chrono::steady_clock::now();
 
-    std::cout<<std::chrono::duration_cast<std::chrono::seconds>(end3-start3).count()<< " seconds for the Monte Carlo finale. " << std::endl << std::endl;
+    std::cout<<std::chrono::duration_cast<std::chrono::seconds>(end3-start3).count()<< " seconds for the Monte Carlo part 2 to calculate expvals and errors. (sweeps = " << nsamsweeps_new << " = " << nsampstp_new << "*" << N_out << std::endl << std::endl;
 
+    // data analysis (part 4).
+    std::cout << "PART 4" << std::endl;
     auto start4 = std::chrono::steady_clock::now();    
-    analyze_samples(nblen, foutp, tau);
+    if (clust)    {
+      analyze_samples(nblen, foutp, (double)(tau*(C_avg/nspins)), funcorr) ;
+    }
+    else    {
+      analyze_samples(nblen, foutp, tau, funcorr);
+    }
     auto end4 = std::chrono::steady_clock::now();
 
-    std::cout<<std::chrono::duration_cast<std::chrono::seconds>(end4-start4).count()<< " seconds for calculating means and errors for physical qtys. " << std::endl << std::endl;
+    std::cout<<std::chrono::duration_cast<std::chrono::seconds>(end4-start4).count()<< " seconds for data analysis. " << std::endl << std::endl<< std::endl;
 
     T+=dT;
   }
   fobs.close() ;
   foutp.close() ;
   fcor.close() ;   
-    return(1) ;
+  return(1) ;
 }
   

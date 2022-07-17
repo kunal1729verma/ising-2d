@@ -38,6 +38,7 @@ nblen = 40
 initialize_all_up = True
 print_cor = True
 sequential = True
+cluster = True
 tmax = 3000
 N_out = 20000
 Llist = [L]
@@ -48,7 +49,7 @@ myrank = comm.Get_rank()
 nprocs = comm.Get_size()
 MASTER = 0
 
-print("Number of processors = ", nprocs)
+print("rank = ", myrank)
 
 print(len(sys.argv))   # sys.argv is the input arguments that you give while running the code.
 print(sys.argv)
@@ -85,6 +86,8 @@ if(myrank == 0) :
                     print_cor = runpdata['print_cor']
                 elif (key == 'sequential') :
                     sequential = runpdata['sequential']
+                elif (key == 'cluster') :
+                    cluster = runpdata['cluster']
                 elif (key == 'tmax') :
                     tmax = runpdata['tmax']
                 elif (key == 'N_out') :
@@ -106,6 +109,7 @@ if(myrank == 0) :
         'initialize_all_up' : initialize_all_up,
         'print_cor' : print_cor,
         'sequential' : sequential,
+        'cluster' : cluster,
         'tmax' : tmax,
         'N_out' : N_out
     }
@@ -122,6 +126,7 @@ if(myrank == 0) :
         'initialize_all_up' : initialize_all_up,
         'print_cor' : print_cor,
         'sequential' : sequential,
+        'cluster' : cluster,
         'tmax' : tmax,
         'N_out' : N_out
     }

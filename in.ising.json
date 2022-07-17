@@ -1,17 +1,18 @@
 {
-    "casename": "seqlL32",
-    "L" : 65,
-    "Tmin": 2.25e0,
-    "Tmax": 2.26e0,
-    "dT": 0.02e0,
-    "neqsweeps": 10000,
-    "nsamsweeps": 200000,
+    "casename": "seqlL256_cluster",
+    "L" : 256,
+    "Tmin": 2.26e0,
+    "Tmax": 2.27e0,
+    "dT": 0.04e0,
+    "neqsweeps": 100,
+    "nsamsweeps": 500,
     "nblen": 40,
     "nsampstp" : 1,
     "initialize_all_up" : true,
     "print_cor" : true,
+    "N_out" : 500,
     "sequential" : true,
-    "tmax" : 3000,
-    "N_out" : 20000
+    "cluster": true,
+    "tmax" : 300
 }
 
