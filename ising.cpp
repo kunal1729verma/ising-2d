@@ -153,7 +153,7 @@ void perform_measurements()
 }
 
 //--------------------------------------------------------------------
-// WOLFF CLUSTER ALGORITHM.
+// WOLFF CLUSTER ALGORITHM. (PART 1 AND 3)
 //--------------------------------------------------------------------
 std::vector<int> identical_nbrs(int initial_seed)   
 {
@@ -189,13 +189,8 @@ std::vector<int> identical_nbrs(int initial_seed)
 }
 
 //--------------------------------------------------------------------
-std::array<std::vector<int>,2> add_to_cluster(std::vector<int> id_nbrs, std::array<std::vector<int>,2> C_and_F_new, double p)
+void add_to_cluster(std::vector<int> id_nbrs, std::vector<int> &C, std::vector<int> &F_new, double p)
 {
-  std::vector<int> C, F_new;
-
-  C = C_and_F_new[0];
-  F_new = C_and_F_new[1];
-
   for (int j = 0; j < id_nbrs.size(); j++)
   {
     if(!(std::find(C.begin(), C.end(), id_nbrs[j]) != C.end()))   // if id_nbrs[j] doesn't belong to the vector C
@@ -206,19 +201,15 @@ std::array<std::vector<int>,2> add_to_cluster(std::vector<int> id_nbrs, std::arr
         F_new.push_back(id_nbrs[j]);
       }
     }
-  }
-  C_and_F_new[0] = C;
-  C_and_F_new[1] = F_new;
-  
-  return C_and_F_new;
+  }  
+  return;
 }
 
 //--------------------------------------------------------------------
 int cluster_flip(int initial_seed)
 {
   std::vector<int> C, F_old, F_new, id_nbrs;
-  std::array<std::vector<int>,2> C_and_F_new;
-
+  
   C.push_back(initial_seed);
   F_old.push_back(initial_seed);
 
@@ -230,11 +221,7 @@ int cluster_flip(int initial_seed)
     for (int i = 0; i < F_old.size(); i++)
     {
       id_nbrs = identical_nbrs(F_old[i]);
-      C_and_F_new[0] = C;
-      C_and_F_new[1] = F_new;
-      C_and_F_new = add_to_cluster(id_nbrs, C_and_F_new, p);
-      C = C_and_F_new[0];
-      F_new = C_and_F_new[1];
+      add_to_cluster(id_nbrs, C, F_new, p);       // updates C and F_new arrays after selecting new spins into the cluster.
     }
     F_old = F_new;
   }
@@ -252,8 +239,8 @@ int cluster_flip(int initial_seed)
 //--------------------------------------------------------------------
 double run_wolff_cluster(int const neqsweeps, int const nsamsweeps, int const nsampstp)
 {
-  std::vector<int> C_sizes;
-  int C_len;
+  std::vector<int> C_sizes;     // vector of cluster sizes
+  int C_len;             
 
   // Equilibration process. 
   for(int isw = 0 ; isw < neqsweeps ; isw++)
@@ -268,7 +255,7 @@ double run_wolff_cluster(int const neqsweeps, int const nsamsweeps, int const ns
   {
     auto initial_seed = (int)(uniform_real(gen)*(double)nspins);
     C_len = cluster_flip(initial_seed);
-    C_sizes.push_back(C_len);  
+    C_sizes.push_back(C_len);                   // collecting cluster sizes for equilibrated sweeps.
 
     if( isw%nsampstp == 0 ) perform_measurements() ;
   }
@@ -280,12 +267,12 @@ double run_wolff_cluster(int const neqsweeps, int const nsamsweeps, int const ns
   }
   C_avg /= C_sizes.size();
 
-  return C_avg;
+  return C_avg;             // average cluster size in the MC run (required for appropriate normalization of autocorr_time).
 }
 
 
 //--------------------------------------------------------------------
-// METROPOLIS-HASTINGS ALGORITHM.
+// METROPOLIS-HASTINGS ALGORITHM. (PART 1 AND 3)
 //--------------------------------------------------------------------
 void flip_spin(int const ix, int const iy)
 {
@@ -362,6 +349,8 @@ void run_metropolis(int const neqsweeps, int const nsamsweeps, int const nsampst
 }
 
 //--------------------------------------------------------------------
+// AUTOCORRELATION MEASUREMENTS. (PART 2)
+//--------------------------------------------------------------------
 double obtain_correlation_value(int iobs, int t)
 {
   double mean = 0.e0, mean2 = 0.e0;
@@ -384,6 +373,7 @@ double obtain_correlation_value(int iobs, int t)
   return C;
 }
 //--------------------------------------------------------------------
+
 double obtain_correlation_time(int const tmax, std::ofstream &fp, std::ofstream &fo)
 {
   // saving observations in a data file
@@ -466,7 +456,9 @@ double obtain_correlation_time(int const tmax, std::ofstream &fp, std::ofstream 
   return tau_int;  // return the integrated correlation time
 }
 
-// ----------------------------------------------------------------------
+//--------------------------------------------------------------------
+// DATA ANALYSIS. (PART 4)
+//--------------------------------------------------------------------
 double mean_data(std::vector<double> data)
 {
   double average = 0;
@@ -615,7 +607,7 @@ void analyze_samples(int const nblen, std::ofstream &fp, double cortime, std::of
 }
 
 //--------------------------------------------------------------------
-//--------------------------------------------------------------------
+// MAIN FUNCTION.
 //--------------------------------------------------------------------
 
 int main(int argc, char** argv)
@@ -821,7 +813,7 @@ int main(int argc, char** argv)
     }       
     auto end3 = std::chrono::steady_clock::now();
 
-    std::cout<<std::chrono::duration_cast<std::chrono::seconds>(end3-start3).count()<< " seconds for the Monte Carlo part 2 to calculate expvals and errors. (sweeps = " << nsamsweeps_new << " = " << nsampstp_new << "*" << N_out << std::endl << std::endl;
+    std::cout<<std::chrono::duration_cast<std::chrono::seconds>(end3-start3).count()<< " seconds for the Monte Carlo part 2 to calculate expvals and errors. (sweeps = " << nsamsweeps_new << " = " << nsampstp_new << "*" << N_out << ")" <<std::endl << std::endl;
 
     // data analysis (part 4).
     std::cout << "PART 4" << std::endl;
