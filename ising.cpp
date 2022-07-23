@@ -237,6 +237,49 @@ int cluster_flip(int initial_seed)
 }
 
 //--------------------------------------------------------------------
+// ALTERNATE ALGORITHM SUGGESTED BY NIKHIL (FOR WOLFF CLUSTER)
+//--------------------------------------------------------------------
+int cluster_nikhil(int initial_seed)
+{
+  int n;
+  int index1 = 0, index2 = 0;
+  // index 1 points to the site whose neighbours are to be analyzed for adding/rejecting to the cluster.
+  // index 2 points at the end element of the list, essentially giving the size of the dynamic array. (the entire role of index 2 can be replaced by simple C.size(), but keeping it this way makes it more illustrative.)
+  std::vector<int> C, id_nbrs;
+  C.push_back(initial_seed);
+
+  double p = 1 - embetaJ[2];
+
+  while(index1 <= index2 && index2 < nspins - 1) 
+	{
+		n = C[index1];
+    id_nbrs = identical_nbrs(n);
+
+    for (int j = 0; j < id_nbrs.size(); j++)  
+    {
+      if(!(std::find(C.begin(), C.end(), id_nbrs[j]) != C.end()))   // to check if the id_nbr[j] already belongs to C
+      {
+        if (uniform_real(gen) < p)
+        {
+          C.push_back(id_nbrs[j]);
+          index2++;
+        }
+      }
+    }  
+		index1++;
+	}
+
+  for (int i = 0; i < C.size(); i ++ )
+  {
+    int ix = (int)(C[i]/L);
+    int iy = (int)(C[i]%L);
+    spin[(std::array<int,2>){ix,iy}]*=-1;   // spin flip of the cluster
+  }
+
+  return C.size();
+}
+
+//--------------------------------------------------------------------
 double run_wolff_cluster(int const neqsweeps, int const nsamsweeps, int const nsampstp)
 {
   std::vector<int> C_sizes;     // vector of cluster sizes
@@ -835,4 +878,3 @@ int main(int argc, char** argv)
   fcor.close() ;   
   return(1) ;
 }
-  
